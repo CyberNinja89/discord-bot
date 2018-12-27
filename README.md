@@ -6,7 +6,7 @@ A discord bot written Go with a variety of features for a discord server. This b
 
 1. [Features](#features)
 1. [Usages](#usages)
-1. [Build](#build)
+1. [Building Discord Bot](#build-discord-bot)
 1. [Running Discord Bot](#running-discord-bot)
 
 ## Features
