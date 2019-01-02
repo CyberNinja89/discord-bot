@@ -2,29 +2,35 @@ package main
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
 
+var (
+	token string
+
+	commandsList = "`!airhorn` - play an airhorn in the current voice channel\n" +
+		"`!mystats` - display your Overwatch SR\n" +
+		"`!myteam` - display your team's Overwatch average SR\n" +
+		"`!teams` - display team rosters on the server\n" +
+		"`!stats` - look up a player's Overwatch SR\n" +
+		"`!updateteam` - gets the latest rankings for your team\n" +
+		"`!adduser` - associate Discord userID with Blizzard username\n" +
+		"`!addteam` - associate Blizzard username with OverWatch team"
+)
+
 func init() {
 	flag.StringVar(&token, "t", "", "Bot Token")
 	flag.Parse()
 }
-
-var (
-	token       string
-	audioBuffer = make([][]byte, 0)
-	owMap       = make(map[string]string)
-)
 
 func main() {
 	if token == "" {
@@ -33,7 +39,12 @@ func main() {
 	}
 
 	// Load persistent json file
-	err := loadMapJSON("data/owUsers.json", &owMap)
+	err := loadUserJSON("data/owUsers.json", &owPlayers)
+	if err != nil {
+		fmt.Println("Error loading map: ", err)
+		return
+	}
+	err = loadTeamJSON("data/owTeams.json", &owTeams)
 	if err != nil {
 		fmt.Println("Error loading map: ", err)
 		return
@@ -53,10 +64,16 @@ func main() {
 		return
 	}
 
-	// Register airhorn as a callback for the airhorn events.
+	// Register each command as a callback for events.
+	dg.AddHandler(commands)
 	dg.AddHandler(airhorn)
-	dg.AddHandler(addOWUser)
 	dg.AddHandler(owStats)
+	dg.AddHandler(owTeamAvg)
+	dg.AddHandler(owTeamList)
+	dg.AddHandler(owPlayerStats)
+	dg.AddHandler(owTeamUpdate)
+	dg.AddHandler(addOWUser)
+	dg.AddHandler(addOWTeam)
 
 	// Open the websocket and begin listening.
 	err = dg.Open()
@@ -72,28 +89,6 @@ func main() {
 
 	// Cleanly close down the Discord session.
 	dg.Close()
-}
-
-// loadMapJSON attempts to load json file from disk into a map.
-func loadMapJSON(jsonFile string, m *map[string]string) error {
-	jsonByte, err := ioutil.ReadFile(jsonFile)
-	if err != nil {
-		fmt.Println("Error opening json file :", err)
-		return err
-	}
-	err = json.Unmarshal(jsonByte, m)
-	if err != nil {
-		fmt.Println("Error unmarshalling json file :", err)
-		return err
-	}
-	return nil
-}
-
-// saveMapJSON saves to map to json for persistence after the server closes
-func saveMapJSON(jsonFile string, m *map[string]string) error {
-	r, _ := json.MarshalIndent(m, "", "    ")
-	err := ioutil.WriteFile(jsonFile, []byte(r), 0644)
-	return err
 }
 
 // loadSound attempts to load an encoded sound file from disk.
@@ -176,4 +171,20 @@ func playSound(s *discordgo.Session, guildID, channelID string) (err error) {
 	vc.Disconnect()
 
 	return nil
+}
+
+// commands displays the all the valid discord bot commands
+func commands(s *discordgo.Session, m *discordgo.MessageCreate) {
+	// Ignore all messages created by the bot itself
+	// This isn't required in this specific example but it's a good practice.
+	if m.Author.ID == s.State.User.ID {
+		return
+	}
+
+	// check if the message is "!commands"
+	if strings.HasPrefix(m.Content, "!commands") {
+		s.ChannelMessageSend(m.ChannelID, commandsList)
+	}
+
+	return
 }

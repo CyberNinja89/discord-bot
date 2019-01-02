@@ -7,6 +7,10 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+var (
+	audioBuffer = make([][]byte, 0)
+)
+
 // This function will be called (due to AddHandler above) every time a new
 // airhorn is created on any channel that the authenticated bot has access to.
 func airhorn(s *discordgo.Session, m *discordgo.MessageCreate) {
